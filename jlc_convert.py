@@ -92,7 +92,7 @@ def convert_kicad_bom(input_file, output_file):
             
         # Determine if this is the enhanced format (comma-delimited with many columns)
         # or the simple format (semicolon-delimited)
-        is_enhanced_format = ('Reference' in first_line and 'LCSC #' in first_line)
+        is_enhanced_format = ('Reference' in first_line and ('LCSC' in first_line or 'Value' in first_line))
         
         if is_enhanced_format:
             convert_kicad_bom_enhanced(input_file, output_file)
@@ -167,19 +167,25 @@ def convert_kicad_bom_enhanced(input_file, output_file):
                 reference = row.get('Reference', '').strip('"')
                 value = row.get('Value', '').strip('"')
                 footprint = row.get('Footprint', '').strip('"')
+                dnp = row.get('DNP', '').strip('"')
+                exclude_from_bom = row.get('Exclude from BOM', '').strip('"')
                 
                 # Skip empty rows
                 if not reference or not value:
                     continue
                 
+                # Skip components marked as DNP (Do Not Place) or excluded from BOM
+                if dnp.lower() in ['true', 'yes', '1', 'x'] or exclude_from_bom.lower() in ['true', 'yes', '1', 'x', 'excluded from bom']:
+                    continue
+                
                 # Find LCSC part number using priority order
-                lcsc_part = get_priority_value(row, ['LCSC #', 'China LCSC #', 'Alternate LCSC #'])
+                lcsc_part = get_priority_value(row, ['LCSC', 'LCSC #', 'China LCSC #', 'Alternate LCSC #'])
                 
                 # Find part number using priority order
                 part_number = get_priority_value(row, ['MFG Part Number', 'China MFG PN', 'Alternate MFG Part Number'])
                 
-                # Generate description/comment
-                comment = generate_description(value, part_number, reference)
+                # Generate description/comment - use the value as the primary comment
+                comment = value
                 
                 # Split comma-separated references
                 references = [r.strip() for r in reference.split(',') if r.strip()]
